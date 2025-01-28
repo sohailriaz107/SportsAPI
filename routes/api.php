@@ -22,12 +22,4 @@ Route::get('/teams',[APIcontroller::class,'FillTeams']);
 Route::get('/matches',[APIcontroller::class,'FillMatches']);
 Route::get('/livescore',[APIcontroller::class,'getLiveMatches']);
 
-// Route::get('/leagues/store', [LeagueController::class, 'show']);
 
-// Route::get('/teams',[TeamsController::class,'index']);
-// Route::get('/teams/store',[TeamsController::class,'store']);
-
-// Route::get('/teampage',[APIcontroller::class,'index']);
-
-// Route::get('/matches',[MatchController::class,'store']);
-// Route::get('/matches/today',[MatchController::class,'getLiveMatches']);

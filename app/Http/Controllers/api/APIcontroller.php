@@ -4,7 +4,7 @@ namespace App\Http\Controllers\api;
 
 use App\Http\Controllers\Controller;
 use App\Models\API;
-use App\Models\league;
+use App\Models\League;
 use App\Models\Matches;
 use App\Models\teams;
 use Illuminate\Http\Request;
