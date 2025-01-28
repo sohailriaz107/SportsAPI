@@ -19,5 +19,8 @@ class league extends Model
         'sub_type',
         'category'
     ];
+    protected $casts = [
+        'has_jerseys' => 'boolean',
+    ];
     
 }

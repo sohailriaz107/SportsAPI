@@ -1,87 +1,132 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+use Illuminate\Support\Facades\Http;
 use App\Http\Controllers\Controller;
 use App\Models\teams;
+use App\Models\API;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 
 class TeamsController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         //
+        $currentPage = $request->input('page', 1);
+    // Define how many items you want per page
+    $perPage = $request->input('per_page', 25);
+
+    // Fetch the leagues with pagination
+    $team = teams::paginate($perPage);
+
+    // Prepare the response
+    $response = [
+        'pagination' => [
+            'count' => $team->total(), // Total number of items
+            'per_page' => $team->perPage(), // Items per page
+            'current_page' => $team->currentPage(), // Current page
+            'next_page' => $team->hasMorePages() ? $team->currentPage() + 1 : null, // Next page
+            'has_more' => $team->hasMorePages(), // Check if there are more pages
+        ],
+        'team' => $team->items(), // The actual items
+        'rate_limit' => [
+            'resets_in_seconds' => 1816, // Example value, adjust as needed
+            'remaining' => 2995, // Example value, adjust as needed
+            'requested_entity' => 'team', // Example value, adjust as needed
+        ],
+        'timezone' => 'UTC', // Example value, adjust as needed
+    ];
+
+    return response()->json($response);
+    
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    
+    
+   
+    public function store()
     {
-        try {
-            // **Validation**
-            $request->validate([
-                'api_id' => 'required|integer|unique:teams,api_id', 
-                'sport_id' => 'required|integer',
-                'country_id' => 'required|integer',
-                'venue_id' => 'required|integer',
-                'gender' => 'required|string|in:male,female,mixed',
-                'name' => 'required|string|max:255',
-                'short_code' => 'nullable|string|max:10',
-                'image_path' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-                'type' => 'required|string|max:50',
-                'founded' => 'nullable|integer|min:1800|max:' . date('Y'),
+        
+        $lastPage = API::where('id', 1)->value('teams'); 
+        $currentPage = $lastPage ? $lastPage : 1; 
+    
+        // Loop through pages until no more pages are available
+        while (true) {
+            $response = Http::withOptions([
+                'verify' => false, 
+            ])->withHeaders([
+                'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
+                'Authorization' => 'ZR9GZiwYYiqn0brFsYqaOTAxiWtE0u5epuwwojxFGQsmLcLkDJFzDSM7eKu3'
+            ])->get('https://api.sportmonks.com/v3/football/teams', [
+                'page' => $currentPage // Pass the current page number to the API request
             ]);
     
-            // **Store Team Data**
-            $team = new teams();
-            $team->api_id = $request->api_id;
-            $team->sport_id = $request->sport_id;
-            $team->country_id = $request->country_id;
-            $team->venue_id = $request->venue_id;
-            $team->gender = $request->gender;
-            $team->name = $request->name;
-            $team->short_code = $request->short_code;
-            $team->type = $request->type;
-            $team->founded = $request->founded;
-    
-            // **Handle Image Upload**
-            if ($request->hasFile('image_path')) {
-                $imageName = time() . '.' . $request->file('image_path')->extension();
-                $request->file('image_path')->move(public_path('uploads/teams'), $imageName);
-                $team->image_path = 'uploads/teams/' . $imageName;
+            // Check if the response was successful
+            if ($response->failed()) {
+                return response()->json(['error' => 'Failed to fetch teams'], 500);
             }
     
-            $team->save();
+            $data = $response->json();
     
-            return response()->json([
-                'message' => 'Team registered successfully',
-                'team' => $team,
-            ], 201);
+            // Check if the response contains 'data'
+            if (!isset($data['data']) || empty($data['data'])) {
+                break; // Stop the loop if no data is returned
+            }
     
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'message' => 'Validation Error',
-                'errors' => $e->errors(),
-            ], 422);
+            foreach ($data['data'] as $teamDataFromApi) {
+                // Use updateOrCreate to prevent duplicate records based on api_id
+                Teams::updateOrCreate(
+                    ['api_id' => $teamDataFromApi['id']], // Check by API ID to prevent duplicates
+                    [
+                        'name'          => $teamDataFromApi['name'] ?? 'Unknown',
+                        'sport_id'      => $teamDataFromApi['sport_id'] ?? 0,
+                        'country_id'    => $teamDataFromApi['country_id'] ?? 0,
+                        'venue_id'      => $teamDataFromApi['venue_id'] ?? null,
+                        'gender'        => $teamDataFromApi['gender'] ?? null,
+                        'short_code'    => $teamDataFromApi['short_code'] ?? null,
+                        'image_path'    => $teamDataFromApi['image_path'] ?? null,
+                        'founded'       => $teamDataFromApi['founded'] ?? null,
+                        'type'          => $teamDataFromApi['type'] ?? null,
+                        'placeholder'   => $teamDataFromApi['placeholder'] ?? null,
+                        'last_played_at'=> $teamDataFromApi['last_played_at'] ?? null
+                    ]
+                );
+            }
+    
+            // Check if there are more pages based on the 'has_more' flag in the API response
+            $hasMore = $data['pagination']['has_more'] ?? false; // Check the 'has_more' flag
+    
+            if ($hasMore) {
+                // Increment the page number for the next request
+                $currentPage++;
+            } else {
+                // No more pages, stop the loop
+                break;
+            }
+        }
+    
+        // ✅ Store the last page number in the 'API' table
+        try {
+            API::updateOrCreate(
+                ['id' => 1],
+                ['teams' => $currentPage] // Store the last processed page number
+            );
+    
+            return response()->json(['message' => 'Teams data stored from all available pages, last page updated']);
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Something went wrong!',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
     
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+    
 
     /**
      * Update the specified resource in storage.
@@ -89,6 +134,7 @@ class TeamsController extends Controller
     public function update(Request $request, string $id)
     {
         //
+        
     }
 
     /**

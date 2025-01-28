@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\api\APIcontroller;
 use App\Http\Controllers\api\UserController;
 use App\Http\Controllers\api\LeagueController;
 use App\Http\Controllers\Api\MatchController;
@@ -15,17 +16,18 @@ Route::get('/user', function (Request $request) {
 Route::get('test',function(){
  return ["name"=>"Anil","channel"=>"Code"];
 });
-Route::get('list',[UserController::class,'list']);
-Route::post('/league',[LeagueController::class,'store']);
-Route::post('/teams',[TeamsController::class,'store']);
 
-Route::post('/matches',[MatchController::class,'store']);
-Route::get('/matches/today',[MatchController::class,'getTodayMatches']);
-Route::put('update/matches/{id}',[MatchController::class,'update']);
-Route::post('delete/matches/{id}',[MatchController::class,'destroy']);
-// score
-Route::post('/storescore',[ScoreController::class,'store']);
-Route::get('/getscore',[ScoreController::class,'index']);
-Route::get('/showscore/{id}',[ScoreController::class,'show']);
-Route::put('/updatescore/{id}',[ScoreController::class,'update']);
-Route::post('/delete/{id}',[ScoreController::class,'destroy']);
+Route::get('/leagues',[APIcontroller::class,'FillLeague']);
+Route::get('/teams',[APIcontroller::class,'FillTeams']);
+Route::get('/matches',[APIcontroller::class,'FillMatches']);
+Route::get('/livescore',[APIcontroller::class,'getLiveMatches']);
+
+// Route::get('/leagues/store', [LeagueController::class, 'show']);
+
+// Route::get('/teams',[TeamsController::class,'index']);
+// Route::get('/teams/store',[TeamsController::class,'store']);
+
+// Route::get('/teampage',[APIcontroller::class,'index']);
+
+// Route::get('/matches',[MatchController::class,'store']);
+// Route::get('/matches/today',[MatchController::class,'getLiveMatches']);
